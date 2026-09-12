@@ -8,7 +8,7 @@ suggests recipes that prioritize the ingredients closest to going to waste.
 
 ## How it works
 
-1. **Photograph** — snap or upload a photo of a fridge shelf.
+1. **Photograph** — snap a photo, drag one in, or choose one from your library.
 2. **Review** — the app detects ingredients, estimates quantity/freshness,
    and lets you remove anything it got wrong before continuing. You can also
    set a dietary preference (no restrictions / vegetarian / vegan).
@@ -104,3 +104,7 @@ Open [http://localhost:3000](http://localhost:3000).
 - **Vision model** is currently Groq's Qwen (`lib/ai.ts`); the code is
   structured so it can be swapped for a Claude vision call with no other
   changes once that's needed.
+- **Motion** — an animated ambient gradient background, spring-based step
+  transitions, staggered ingredient/recipe entrances, and a scanning
+  animation with cycling status text while a photo is being analyzed
+  (all `framer-motion`, see `app/page.tsx` and `components/FridgeUploader.tsx`).

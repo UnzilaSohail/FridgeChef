@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local demo/marketing assets (large binaries, not source)
+docs/*.mp4
+docs/*.srt
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
