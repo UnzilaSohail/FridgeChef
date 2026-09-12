@@ -65,6 +65,15 @@ async function callJsonModel(
       if (err instanceof AuthenticationError) throw new InvalidApiKeyError();
       if (err instanceof RateLimitError) throw new RateLimitedError();
       if (err instanceof APIError) {
+        // Groq's own JSON-mode validator 400s when the model's output gets
+        // truncated mid-object (e.g. max_tokens cut off a long ingredient
+        // list) — that's recoverable the same way a client-side JSON.parse
+        // failure is, so retry with the same brevity nudge instead of
+        // failing outright on the first attempt.
+        if (attempt === 0) {
+          messages = [...messages, { role: "user", content: JSON_RETRY_SUFFIX }];
+          continue;
+        }
         throw new Error(`Groq API error (${err.status}): ${err.message}`);
       }
       throw err;
@@ -80,8 +89,11 @@ async function callJsonModel(
 }
 
 export async function analyzeImage(imageDataUrl: string): Promise<unknown> {
-  // 500: stays under Groq's free-tier ~1000 output-tokens/minute cap for
-  // this model while covering a realistic ingredient list.
+  // A well-stocked fridge shelf can easily have 15-20+ visible items; at
+  // ~30-40 tokens per structured ingredient object, 500 was too tight and
+  // truncated mid-object on real photos (Groq's JSON-mode validator then
+  // 400s rather than returning the partial content). ANALYZE_PROMPT also
+  // caps the list at 20 items as a belt-and-suspenders bound.
   return callJsonModel(
     VISION_MODEL,
     [
@@ -93,7 +105,7 @@ export async function analyzeImage(imageDataUrl: string): Promise<unknown> {
         ],
       },
     ],
-    500,
+    1500,
   );
 }
 
