@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
   try {
     const raw = await analyzeImage(imageDataUrl);
     parsed = AnalyzeResponseSchema.parse(raw);
-  } catch {
+  } catch (err) {
+    console.error("analyze route error:", err);
     return NextResponse.json({ error: "Could not read the photo, try again" }, { status: 502 });
   }
 
