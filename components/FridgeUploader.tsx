@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, ScanLine } from "lucide-react";
+import { Camera, Images, ScanLine } from "lucide-react";
 import { fileToUploadableDataUrl } from "@/lib/image";
 
 export function FridgeUploader({
@@ -16,7 +16,8 @@ export function FridgeUploader({
   compact?: boolean;
   loadingLabel?: string;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
   async function readFile(file: File | undefined | null) {
@@ -30,59 +31,86 @@ export function FridgeUploader({
     e.target.value = "";
   }
 
-  function handleDrop(e: React.DragEvent<HTMLButtonElement>) {
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setDragging(false);
     if (disabled) return;
     readFile(e.dataTransfer.files?.[0]).catch((err) => console.error("Could not read photo:", err));
   }
 
-  const input = (
-    <input
-      ref={inputRef}
-      type="file"
-      accept="image/*"
-      onChange={handleChange}
-      disabled={disabled}
-      className="hidden"
-    />
+  // Two separate inputs: only the camera one forces a direct capture
+  // (capture="environment"), which on some Android/iOS combinations opens
+  // straight into the camera. Offering it as an explicit, separate choice
+  // (rather than relying on the OS's combined file/camera chooser, which
+  // varies a lot across devices) keeps the "take a live photo" path
+  // predictable while still letting people pick an existing photo.
+  const inputs = (
+    <>
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleChange}
+        disabled={disabled}
+        className="hidden"
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleChange}
+        disabled={disabled}
+        className="hidden"
+      />
+    </>
   );
 
   if (compact) {
     return (
-      <>
-        {input}
+      <div className="flex items-center gap-3">
+        {inputs}
         <motion.button
-          onClick={() => inputRef.current?.click()}
+          onClick={() => cameraInputRef.current?.click()}
           disabled={disabled}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          aria-label="Take another photo"
+          title="Take another photo"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-terracotta hover:text-terracotta-dark transition-colors disabled:opacity-40"
         >
           <Camera size={16} strokeWidth={2.2} />
-          Scan another shelf
         </motion.button>
-      </>
+        <motion.button
+          onClick={() => galleryInputRef.current?.click()}
+          disabled={disabled}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          aria-label="Choose from library"
+          title="Choose from library"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-terracotta hover:text-terracotta-dark transition-colors disabled:opacity-40"
+        >
+          <Images size={16} strokeWidth={2.2} />
+        </motion.button>
+      </div>
     );
   }
 
   return (
     <div className="text-center">
-      {input}
-      <button
-        onClick={() => inputRef.current?.click()}
+      {inputs}
+      <div
         onDragOver={(e) => {
           e.preventDefault();
           if (!disabled) setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        disabled={disabled}
-        className={`group relative isolate inline-flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed px-12 py-14 transition-all duration-300 disabled:pointer-events-none w-full overflow-hidden ${
+        className={`group relative isolate flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed px-8 sm:px-12 py-14 transition-all duration-300 w-full overflow-hidden ${
           dragging
             ? "border-terracotta bg-terracotta/5 scale-[1.01]"
-            : "border-border bg-card hover:border-terracotta hover:shadow-[0_8px_30px_-8px_rgba(193,80,46,0.25)]"
-        } ${disabled ? "opacity-70" : ""}`}
+            : "border-border bg-card hover:border-terracotta/60"
+        } ${disabled ? "opacity-70 pointer-events-none" : ""}`}
       >
         {/* Sweeping scan-line while analyzing */}
         <AnimatePresence>
@@ -99,7 +127,7 @@ export function FridgeUploader({
 
         <span
           className={`relative flex h-14 w-14 items-center justify-center rounded-full bg-terracotta text-cream transition-transform duration-300 ${
-            disabled ? "" : "group-hover:scale-110 group-hover:rotate-3"
+            disabled ? "" : "group-hover:scale-110"
           }`}
         >
           {disabled && loadingLabel ? (
@@ -129,9 +157,31 @@ export function FridgeUploader({
         </AnimatePresence>
 
         {!disabled && (
-          <span className="text-sm text-charcoal-soft">or drag a photo in / choose from your library</span>
+          <>
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-1">
+              <motion.button
+                onClick={() => cameraInputRef.current?.click()}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="inline-flex items-center gap-2 rounded-xl bg-terracotta text-cream px-5 py-2.5 font-medium text-sm hover:bg-terracotta-dark transition-colors"
+              >
+                <Camera size={16} strokeWidth={2.2} />
+                Take Photo
+              </motion.button>
+              <motion.button
+                onClick={() => galleryInputRef.current?.click()}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-5 py-2.5 font-medium text-sm text-charcoal hover:border-terracotta/50 transition-colors"
+              >
+                <Images size={16} strokeWidth={2.2} />
+                Choose from Library
+              </motion.button>
+            </div>
+            <span className="text-xs text-charcoal-soft/70">or drag a photo in</span>
+          </>
         )}
-      </button>
+      </div>
     </div>
   );
 }
