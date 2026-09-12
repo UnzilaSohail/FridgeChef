@@ -1,0 +1,30 @@
+import { NextRequest, NextResponse } from "next/server";
+import { analyzeImage } from "@/lib/ai";
+import { AnalyzeResponseSchema } from "@/lib/schemas";
+import { scoreIngredient } from "@/lib/waste-priority";
+import type { DetectedIngredient } from "@/types";
+
+// ponytail: no rate limiting yet — fine for local dev, add IP-based
+// limiting (e.g. @upstash/ratelimit) before this route is public.
+export async function POST(req: NextRequest) {
+  const { imageDataUrl } = await req.json();
+  if (typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:image/")) {
+    return NextResponse.json({ error: "Invalid image data" }, { status: 400 });
+  }
+
+  let parsed;
+  try {
+    const raw = await analyzeImage(imageDataUrl);
+    parsed = AnalyzeResponseSchema.parse(raw);
+  } catch {
+    return NextResponse.json({ error: "Could not read the photo, try again" }, { status: 502 });
+  }
+
+  const ingredients: DetectedIngredient[] = parsed.ingredients.map((ing) => ({
+    ...ing,
+    id: crypto.randomUUID(),
+    wastePriorityScore: scoreIngredient(ing.freshnessState, ing.category),
+  }));
+
+  return NextResponse.json({ ingredients });
+}

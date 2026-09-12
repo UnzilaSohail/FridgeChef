@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+:root {
+  --color-cream: #fbf6ee;
+  --color-cream-deep: #f2e8d8;
+  --color-charcoal: #2a2420;
+  --color-charcoal-soft: #766a5c;
+  --color-terracotta: #c1502e;
+  --color-terracotta-dark: #9c3e21;
+  --color-olive: #5f6b41;
+  --color-olive-soft: #e8ecdb;
+  --color-amber: #b17422;
+  --color-amber-soft: #f6ead2;
+  --color-rust: #a63a28;
+  --color-rust-soft: #f5e0da;
+  --color-border: #e6d9c2;
+  --color-card: #fffdf9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-cream: #1c1815;
+    --color-cream-deep: #262019;
+    --color-charcoal: #f2eade;
+    --color-charcoal-soft: #b3a692;
+    --color-terracotta: #e07850;
+    --color-terracotta-dark: #f0906a;
+    --color-olive: #a3b378;
+    --color-olive-soft: #2c3320;
+    --color-amber: #dba64e;
+    --color-amber-soft: #362a15;
+    --color-rust: #e2695a;
+    --color-rust-soft: #3a201c;
+    --color-border: #3a3128;
+    --color-card: #221d18;
+  }
+}
+
+@theme inline {
+  --color-cream: var(--color-cream);
+  --color-cream-deep: var(--color-cream-deep);
+  --color-charcoal: var(--color-charcoal);
+  --color-charcoal-soft: var(--color-charcoal-soft);
+  --color-terracotta: var(--color-terracotta);
+  --color-terracotta-dark: var(--color-terracotta-dark);
+  --color-olive: var(--color-olive);
+  --color-olive-soft: var(--color-olive-soft);
+  --color-amber: var(--color-amber);
+  --color-amber-soft: var(--color-amber-soft);
+  --color-rust: var(--color-rust);
+  --color-rust-soft: var(--color-rust-soft);
+  --color-border: var(--color-border);
+  --color-card: var(--color-card);
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-manrope);
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-charcoal);
+}
+
+/* Subtle hand-drawn-ish texture so the page reads less like a stock template */
+.grain-bg {
+  background-image: radial-gradient(var(--color-charcoal) 0.5px, transparent 0.5px);
+  background-size: 18px 18px;
+  opacity: 0.04;
+}
