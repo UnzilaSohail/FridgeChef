@@ -1,10 +1,34 @@
-import OpenAI from "openai";
+import OpenAI, { AuthenticationError, RateLimitError, APIError } from "openai";
 import { ANALYZE_PROMPT, JSON_RETRY_SUFFIX } from "@/lib/prompts";
 
+export class MissingApiKeyError extends Error {
+  constructor() {
+    super("GROQ_API_KEY is not set");
+    this.name = "MissingApiKeyError";
+  }
+}
+
+export class InvalidApiKeyError extends Error {
+  constructor() {
+    super("GROQ_API_KEY was rejected by Groq");
+    this.name = "InvalidApiKeyError";
+  }
+}
+
+export class RateLimitedError extends Error {
+  constructor() {
+    super("Rate limited by Groq");
+    this.name = "RateLimitedError";
+  }
+}
+
 // Groq's API is OpenAI-compatible, so the OpenAI SDK works unmodified
-// pointed at Groq's base URL.
+// pointed at Groq's base URL. The constructor throws synchronously (at
+// module load) if apiKey is falsy — fall back to a placeholder so a missing
+// key surfaces as our own MissingApiKeyError from callJsonModel instead of
+// crashing the whole route with an unhandled, unlogged exception.
 const groq = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY,
+  apiKey: process.env.GROQ_API_KEY || "unset",
   baseURL: "https://api.groq.com/openai/v1",
 });
 
@@ -21,18 +45,30 @@ async function callJsonModel(
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
   maxTokens: number,
 ): Promise<unknown> {
+  if (!process.env.GROQ_API_KEY) throw new MissingApiKeyError();
+
   for (let attempt = 0; attempt < 2; attempt++) {
-    const completion = await groq.chat.completions.create({
-      model,
-      messages,
-      temperature: 0.3,
-      response_format: { type: "json_object" },
-      max_tokens: maxTokens,
-      // Both models are reasoning-capable and burn completion tokens on a
-      // hidden "reasoning" pass before the actual JSON — at default effort
-      // that ate the whole max_tokens budget and truncated the JSON mid-object.
-      reasoning_effort: "low",
-    } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
+    let completion;
+    try {
+      completion = await groq.chat.completions.create({
+        model,
+        messages,
+        temperature: 0.3,
+        response_format: { type: "json_object" },
+        max_tokens: maxTokens,
+        // Both models are reasoning-capable and burn completion tokens on a
+        // hidden "reasoning" pass before the actual JSON — at default effort
+        // that ate the whole max_tokens budget and truncated the JSON mid-object.
+        reasoning_effort: "low",
+      } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
+    } catch (err) {
+      if (err instanceof AuthenticationError) throw new InvalidApiKeyError();
+      if (err instanceof RateLimitError) throw new RateLimitedError();
+      if (err instanceof APIError) {
+        throw new Error(`Groq API error (${err.status}): ${err.message}`);
+      }
+      throw err;
+    }
     const raw = completion.choices[0]?.message?.content ?? "";
     try {
       return JSON.parse(raw);
@@ -63,4 +99,25 @@ export async function analyzeImage(imageDataUrl: string): Promise<unknown> {
 
 export async function generateRecipes(prompt: string): Promise<unknown> {
   return callJsonModel(TEXT_MODEL, [{ role: "user", content: prompt }], 1200);
+}
+
+/**
+ * Maps a caught error from analyzeImage/generateRecipes to a safe client-facing
+ * message + status, for the known/classified cases. Returns null for anything
+ * else — callers should fall back to their own route-specific generic message.
+ */
+export function describeAiError(err: unknown): { message: string; status: number } | null {
+  if (err instanceof MissingApiKeyError) {
+    return {
+      message: "Server is missing GROQ_API_KEY — set it in your deployment's environment variables",
+      status: 500,
+    };
+  }
+  if (err instanceof InvalidApiKeyError) {
+    return { message: "Groq rejected the configured GROQ_API_KEY — check it's correct and active", status: 500 };
+  }
+  if (err instanceof RateLimitedError) {
+    return { message: "Too many requests right now, wait a moment and try again", status: 429 };
+  }
+  return null;
 }

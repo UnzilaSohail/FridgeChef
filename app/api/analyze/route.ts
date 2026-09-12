@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { analyzeImage } from "@/lib/ai";
+import { analyzeImage, describeAiError } from "@/lib/ai";
 import { AnalyzeResponseSchema } from "@/lib/schemas";
 import { scoreIngredient } from "@/lib/waste-priority";
 import type { DetectedIngredient } from "@/types";
@@ -26,7 +26,11 @@ export async function POST(req: NextRequest) {
     parsed = AnalyzeResponseSchema.parse(raw);
   } catch (err) {
     console.error("analyze route error:", err);
-    return NextResponse.json({ error: "Could not read the photo, try again" }, { status: 502 });
+    const known = describeAiError(err);
+    return NextResponse.json(
+      { error: known?.message ?? "Could not read the photo, try again" },
+      { status: known?.status ?? 502 },
+    );
   }
 
   const ingredients: DetectedIngredient[] = parsed.ingredients.map((ing) => ({

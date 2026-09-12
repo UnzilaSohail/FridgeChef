@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateRecipes } from "@/lib/ai";
+import { generateRecipes, describeAiError } from "@/lib/ai";
 import { buildRecipePrompt } from "@/lib/prompts";
 import { RecipeResponseSchema } from "@/lib/schemas";
 import { scoreRecipe } from "@/lib/waste-priority";
@@ -33,7 +33,11 @@ export async function POST(req: NextRequest) {
     parsed = RecipeResponseSchema.parse(raw);
   } catch (err) {
     console.error("recipes route error:", err);
-    return NextResponse.json({ error: "Could not generate recipes, try again" }, { status: 502 });
+    const known = describeAiError(err);
+    return NextResponse.json(
+      { error: known?.message ?? "Could not generate recipes, try again" },
+      { status: known?.status ?? 502 },
+    );
   }
 
   const scoreByName = new Map(ingredients.map((i) => [i.name, i.wastePriorityScore]));
