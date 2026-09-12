@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, ScanLine } from "lucide-react";
+import { fileToUploadableDataUrl } from "@/lib/image";
 
 export function FridgeUploader({
   onImage,
@@ -18,15 +19,14 @@ export function FridgeUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
-  function readFile(file: File | undefined | null) {
+  async function readFile(file: File | undefined | null) {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onImage(reader.result as string);
-    reader.readAsDataURL(file);
+    const dataUrl = await fileToUploadableDataUrl(file);
+    onImage(dataUrl);
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    readFile(e.target.files?.[0]);
+    readFile(e.target.files?.[0]).catch((err) => console.error("Could not read photo:", err));
     e.target.value = "";
   }
 
@@ -34,7 +34,7 @@ export function FridgeUploader({
     e.preventDefault();
     setDragging(false);
     if (disabled) return;
-    readFile(e.dataTransfer.files?.[0]);
+    readFile(e.dataTransfer.files?.[0]).catch((err) => console.error("Could not read photo:", err));
   }
 
   const input = (

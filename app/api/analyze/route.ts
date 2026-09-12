@@ -7,7 +7,15 @@ import type { DetectedIngredient } from "@/types";
 // ponytail: no rate limiting yet — fine for local dev, add IP-based
 // limiting (e.g. @upstash/ratelimit) before this route is public.
 export async function POST(req: NextRequest) {
-  const { imageDataUrl } = await req.json();
+  let imageDataUrl: unknown;
+  try {
+    ({ imageDataUrl } = await req.json());
+  } catch {
+    return NextResponse.json(
+      { error: "Photo is too large or the upload was interrupted, try again" },
+      { status: 413 },
+    );
+  }
   if (typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:image/")) {
     return NextResponse.json({ error: "Invalid image data" }, { status: 400 });
   }

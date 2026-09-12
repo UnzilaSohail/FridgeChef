@@ -6,10 +6,13 @@ import { scoreRecipe } from "@/lib/waste-priority";
 import type { DetectedIngredient, DietaryPreference, Recipe } from "@/types";
 
 export async function POST(req: NextRequest) {
-  const { ingredients, preference } = (await req.json()) as {
-    ingredients: DetectedIngredient[];
-    preference?: DietaryPreference;
-  };
+  let body: { ingredients: DetectedIngredient[]; preference?: DietaryPreference };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Malformed request, try again" }, { status: 400 });
+  }
+  const { ingredients, preference } = body;
 
   if (!Array.isArray(ingredients) || ingredients.length === 0) {
     return NextResponse.json({ error: "No ingredients provided" }, { status: 400 });
