@@ -29,7 +29,7 @@ spoiling stands out first.
 ## Tech stack
 
 - **[Next.js 16](https://nextjs.org)** (App Router, Turbopack) + React 19 + TypeScript
-- **Tailwind CSS 4** for styling, **lucide-react** for icons
+- **Tailwind CSS 4** for styling, **lucide-react** for icons, **framer-motion** for the step transitions and micro-interactions
 - **Groq** (OpenAI-compatible API) for both the vision (ingredient detection)
   and text (recipe generation) model calls — see `lib/ai.ts`
 - **Zod** for validating model output against the app's data schemas
