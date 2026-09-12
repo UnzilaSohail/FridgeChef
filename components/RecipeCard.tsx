@@ -3,8 +3,12 @@ import type { Recipe } from "@/types";
 import { WastePriorityBadge } from "@/components/WastePriorityBadge";
 
 export function RecipeCard({ recipe }: { recipe: Recipe }) {
+  const accent =
+    recipe.wastePriorityScore >= 80 ? "bg-rust" : recipe.wastePriorityScore >= 55 ? "bg-amber" : "bg-olive";
+
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 space-y-4 transition-shadow hover:shadow-[0_4px_20px_-4px_rgba(42,36,32,0.12)]">
+    <div className="group relative rounded-2xl border border-border bg-card p-5 pl-6 space-y-4 overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_-8px_rgba(42,36,32,0.18)]">
+      <span className={`absolute left-0 top-0 bottom-0 w-1 ${accent} transition-all duration-300 group-hover:w-1.5`} />
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-display text-xl font-semibold leading-snug">{recipe.title}</h3>
         <WastePriorityBadge score={recipe.wastePriorityScore} />

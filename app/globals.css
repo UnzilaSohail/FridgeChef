@@ -58,6 +58,12 @@
 body {
   background: var(--color-cream);
   color: var(--color-charcoal);
+  position: relative;
+}
+
+::selection {
+  background: var(--color-terracotta);
+  color: var(--color-cream);
 }
 
 /* Subtle hand-drawn-ish texture so the page reads less like a stock template */
@@ -65,4 +71,122 @@ body {
   background-image: radial-gradient(var(--color-charcoal) 0.5px, transparent 0.5px);
   background-size: 18px 18px;
   opacity: 0.04;
+}
+
+/* Soft, slowly-drifting mesh-gradient blobs behind the whole app */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ambient-bg > span {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(64px);
+  opacity: 0.35;
+  will-change: transform;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ambient-bg > span {
+    opacity: 0.22;
+  }
+}
+
+.ambient-bg > span:nth-child(1) {
+  top: -12%;
+  left: -10%;
+  width: 46vmax;
+  height: 46vmax;
+  background: var(--color-terracotta);
+  animation: drift-a 26s ease-in-out infinite;
+}
+
+.ambient-bg > span:nth-child(2) {
+  bottom: -18%;
+  right: -12%;
+  width: 50vmax;
+  height: 50vmax;
+  background: var(--color-olive);
+  animation: drift-b 32s ease-in-out infinite;
+}
+
+.ambient-bg > span:nth-child(3) {
+  top: 30%;
+  right: 10%;
+  width: 30vmax;
+  height: 30vmax;
+  background: var(--color-amber);
+  animation: drift-c 22s ease-in-out infinite;
+}
+
+@keyframes drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6%, 8%) scale(1.12); }
+}
+
+@keyframes drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-8%, -6%) scale(1.08); }
+}
+
+@keyframes drift-c {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-10%, 10%) scale(0.9); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer-text {
+  background-image: linear-gradient(
+    100deg,
+    var(--color-terracotta) 0%,
+    var(--color-amber) 25%,
+    var(--color-terracotta) 50%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 5s linear infinite;
+}
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.float-y {
+  animation: float-y 3.4s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(193, 80, 46, 0.35); }
+  50% { box-shadow: 0 0 0 10px rgba(193, 80, 46, 0); }
+}
+
+.glow-pulse {
+  animation: glow-pulse 2.2s ease-out infinite;
+}
+
+/* Scrollbar polish */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-charcoal-soft);
 }
