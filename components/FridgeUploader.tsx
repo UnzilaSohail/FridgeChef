@@ -42,7 +42,6 @@ export function FridgeUploader({
       ref={inputRef}
       type="file"
       accept="image/*"
-      capture="environment"
       onChange={handleChange}
       disabled={disabled}
       className="hidden"
