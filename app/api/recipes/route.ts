@@ -35,7 +35,10 @@ export async function POST(req: NextRequest) {
     console.error("recipes route error:", err);
     const known = describeAiError(err);
     return NextResponse.json(
-      { error: known?.message ?? "Could not generate recipes, try again" },
+      {
+        error: known?.message ?? "Could not generate recipes, try again",
+        retryAfterSeconds: known?.retryAfterSeconds,
+      },
       { status: known?.status ?? 502 },
     );
   }

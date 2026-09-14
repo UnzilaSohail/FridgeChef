@@ -20,10 +20,63 @@ const PREFERENCES: { value: DietaryPreference; label: string }[] = [
 const SCAN_MESSAGES = ["Scanning shelves…", "Spotting ingredients…", "Checking freshness…"];
 const COOK_MESSAGES = ["Weighing what's about to spoil…", "Matching flavors…", "Plating ideas…"];
 
+// Groq's free-tier tokens-per-minute budget is small enough that a normal
+// photo analyze can trip its 429, even on a first attempt with no other
+// traffic — see app/api/analyze/route.ts. The server tells us how long the
+// window needs to reset (retryAfterSeconds); waiting that out and retrying
+// automatically means the user's one click still finishes on its own
+// instead of erroring out and requiring them to notice and retry by hand.
+const MAX_RATE_LIMIT_RETRIES = 2;
+const MAX_AUTO_WAIT_SECONDS = 60;
+
+type ApiErrorBody = { error?: string; retryAfterSeconds?: number };
+
+async function postJson(url: string, payload: unknown): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  let body: unknown = null;
+  try {
+    body = await res.json();
+  } catch {
+    // Non-JSON or empty body — treated as no error details below.
+  }
+  return { ok: res.ok, status: res.status, body };
+}
+
+async function postWithRateLimitRetry(
+  url: string,
+  payload: unknown,
+  onWaiting: (label: string | null) => void,
+  attempt = 0,
+): Promise<unknown> {
+  const { ok, status, body } = await postJson(url, payload);
+  if (ok) return body;
+
+  const errorBody = (body ?? {}) as ApiErrorBody;
+  if (status === 429 && typeof errorBody.retryAfterSeconds === "number") {
+    if (attempt < MAX_RATE_LIMIT_RETRIES) {
+      const wait = Math.min(Math.max(Math.ceil(errorBody.retryAfterSeconds), 1), MAX_AUTO_WAIT_SECONDS);
+      for (let remaining = wait; remaining > 0; remaining--) {
+        onWaiting(`Busy right now — retrying in ${remaining}s…`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      onWaiting(null);
+      return postWithRateLimitRetry(url, payload, onWaiting, attempt + 1);
+    }
+    throw new Error("Still busy after a few automatic retries — wait a little longer and try again");
+  }
+
+  throw new Error(errorBody.error ?? "Request failed, please try again");
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>("upload");
   const [loading, setLoading] = useState(false);
   const [loadingLabel, setLoadingLabel] = useState("");
+  const [retryWaitLabel, setRetryWaitLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ingredients, setIngredients] = useState<DetectedIngredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -40,19 +93,18 @@ export default function Home() {
       // unsupported format) surfaces the same way an API failure does
       // instead of failing silently.
       const dataUrl = await fileToUploadableDataUrl(file);
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ imageDataUrl: dataUrl }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Analysis failed");
-      const { ingredients: found } = await res.json();
+      const { ingredients: found } = (await postWithRateLimitRetry(
+        "/api/analyze",
+        { imageDataUrl: dataUrl },
+        setRetryWaitLabel,
+      )) as { ingredients: DetectedIngredient[] };
       setIngredients((prev) => [...prev, ...found]);
       setStep("confirm");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setLoading(false);
+      setRetryWaitLabel(null);
     }
   }
 
@@ -64,19 +116,18 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/recipes", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ingredients, preference }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Recipe generation failed");
-      const { recipes: suggested } = await res.json();
+      const { recipes: suggested } = (await postWithRateLimitRetry(
+        "/api/recipes",
+        { ingredients, preference },
+        setRetryWaitLabel,
+      )) as { recipes: Recipe[] };
       setRecipes(suggested);
       setStep("results");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setLoading(false);
+      setRetryWaitLabel(null);
     }
   }
 
@@ -128,7 +179,11 @@ export default function Home() {
                 exit={{ opacity: 0, y: -16 }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
               >
-                <FridgeUploader onFile={handleImage} disabled={loading} loadingLabel={loading ? loadingLabel : undefined} />
+                <FridgeUploader
+                  onFile={handleImage}
+                  disabled={loading}
+                  loadingLabel={loading ? (retryWaitLabel ?? loadingLabel) : undefined}
+                />
               </motion.div>
             )}
 
@@ -196,13 +251,13 @@ export default function Home() {
                       <Loader2 size={18} className="animate-spin" />
                       <AnimatePresence mode="wait">
                         <motion.span
-                          key={loadingLabel}
+                          key={retryWaitLabel ?? loadingLabel}
                           initial={{ opacity: 0, y: 4 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -4 }}
                           transition={{ duration: 0.2 }}
                         >
-                          {loadingLabel}
+                          {retryWaitLabel ?? loadingLabel}
                         </motion.span>
                       </AnimatePresence>
                     </>

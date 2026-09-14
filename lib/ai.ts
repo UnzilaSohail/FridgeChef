@@ -147,7 +147,9 @@ export async function generateRecipes(prompt: string): Promise<unknown> {
  * message + status, for the known/classified cases. Returns null for anything
  * else — callers should fall back to their own route-specific generic message.
  */
-export function describeAiError(err: unknown): { message: string; status: number } | null {
+export function describeAiError(
+  err: unknown,
+): { message: string; status: number; retryAfterSeconds?: number } | null {
   if (err instanceof MissingApiKeyError) {
     return {
       message: "Server is missing GROQ_API_KEY — set it in your deployment's environment variables",
@@ -158,11 +160,16 @@ export function describeAiError(err: unknown): { message: string; status: number
     return { message: "Groq rejected the configured GROQ_API_KEY — check it's correct and active", status: 500 };
   }
   if (err instanceof RateLimitedError) {
-    const message =
-      err.retryAfterSeconds != null
-        ? `Too many requests right now, try again in about ${Math.max(1, Math.ceil(err.retryAfterSeconds))}s`
-        : "Too many requests right now, wait about a minute and try again";
-    return { message, status: 429 };
+    // Groq's own Retry-After when it sends one, otherwise a conservative
+    // guess at the tokens-per-minute window resetting. Exposed as a number
+    // (not just baked into the message) so the client can wait it out and
+    // retry automatically instead of making the user click again.
+    const retryAfterSeconds = err.retryAfterSeconds != null ? Math.max(1, Math.ceil(err.retryAfterSeconds)) : 60;
+    return {
+      message: `Too many requests right now, retrying in ${retryAfterSeconds}s…`,
+      status: 429,
+      retryAfterSeconds,
+    };
   }
   if (err instanceof ModelOutputError) {
     return { message: "Could not make sense of that, please try again", status: 502 };

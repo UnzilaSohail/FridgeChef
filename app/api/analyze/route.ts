@@ -28,7 +28,10 @@ export async function POST(req: NextRequest) {
     console.error("analyze route error:", err);
     const known = describeAiError(err);
     return NextResponse.json(
-      { error: known?.message ?? "Could not read that photo, please try again" },
+      {
+        error: known?.message ?? "Could not read that photo, please try again",
+        retryAfterSeconds: known?.retryAfterSeconds,
+      },
       { status: known?.status ?? 502 },
     );
   }
