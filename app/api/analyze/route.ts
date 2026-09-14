@@ -27,10 +27,10 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("analyze route error:", err);
     const known = describeAiError(err);
-    // TEMPORARY: surface the raw error while diagnosing a production-only
-    // failure — replace with the generic message once root-caused.
-    const fallback = `Could not read the photo: ${err instanceof Error ? err.message : String(err)}`;
-    return NextResponse.json({ error: known?.message ?? fallback }, { status: known?.status ?? 502 });
+    return NextResponse.json(
+      { error: known?.message ?? "Could not read that photo, please try again" },
+      { status: known?.status ?? 502 },
+    );
   }
 
   const ingredients: DetectedIngredient[] = parsed.ingredients.map((ing) => ({

@@ -6,6 +6,7 @@ import { ChefHat, ArrowLeft, Loader2, Sparkles, Check } from "lucide-react";
 import { FridgeUploader } from "@/components/FridgeUploader";
 import { IngredientChip } from "@/components/IngredientChip";
 import { RecipeCard } from "@/components/RecipeCard";
+import { fileToUploadableDataUrl } from "@/lib/image";
 import type { DetectedIngredient, DietaryPreference, Recipe } from "@/types";
 
 type Step = "upload" | "confirm" | "results";
@@ -30,10 +31,15 @@ export default function Home() {
 
   useCyclingLabel(loading ? (step === "upload" ? SCAN_MESSAGES : COOK_MESSAGES) : null, setLoadingLabel);
 
-  async function handleImage(dataUrl: string) {
+  async function handleImage(file: File) {
     setLoading(true);
     setError(null);
     try {
+      // Downscaling/decoding happens here, inside the same try/catch as the
+      // network call, so a bad file (wrong type, corrupt, too large,
+      // unsupported format) surfaces the same way an API failure does
+      // instead of failing silently.
+      const dataUrl = await fileToUploadableDataUrl(file);
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -122,7 +128,7 @@ export default function Home() {
                 exit={{ opacity: 0, y: -16 }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
               >
-                <FridgeUploader onImage={handleImage} disabled={loading} loadingLabel={loading ? loadingLabel : undefined} />
+                <FridgeUploader onFile={handleImage} disabled={loading} loadingLabel={loading ? loadingLabel : undefined} />
               </motion.div>
             )}
 
@@ -142,7 +148,7 @@ export default function Home() {
                       review before we suggest meals
                     </span>
                   </h2>
-                  <FridgeUploader onImage={handleImage} disabled={loading} compact />
+                  <FridgeUploader onFile={handleImage} disabled={loading} compact />
                 </div>
 
                 <div className="space-y-2">

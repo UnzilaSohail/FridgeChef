@@ -22,6 +22,19 @@ export class RateLimitedError extends Error {
   }
 }
 
+// Thrown once both the initial call and the retry-with-brevity-nudge attempt
+// still fail to produce parseable JSON (either Groq's json_object validator
+// 400s on both attempts, or the content parses fine as a request but isn't
+// valid JSON on both attempts). Distinct from a transport/auth failure —
+// this is the model itself not cooperating, so it gets its own class rather
+// than a generic Error the route would have to string-match on.
+export class ModelOutputError extends Error {
+  constructor() {
+    super("Model did not return valid JSON after retry");
+    this.name = "ModelOutputError";
+  }
+}
+
 // Groq's API is OpenAI-compatible, so the OpenAI SDK works unmodified
 // pointed at Groq's base URL. The constructor throws synchronously (at
 // module load) if apiKey is falsy — fall back to a placeholder so a missing
@@ -74,7 +87,7 @@ async function callJsonModel(
           messages = [...messages, { role: "user", content: JSON_RETRY_SUFFIX }];
           continue;
         }
-        throw new Error(`Groq API error (${err.status}): ${err.message}`);
+        throw new ModelOutputError();
       }
       throw err;
     }
@@ -85,7 +98,7 @@ async function callJsonModel(
       messages = [...messages, { role: "user", content: JSON_RETRY_SUFFIX }];
     }
   }
-  throw new Error("Model did not return valid JSON after retry");
+  throw new ModelOutputError();
 }
 
 export async function analyzeImage(imageDataUrl: string): Promise<unknown> {
@@ -130,6 +143,9 @@ export function describeAiError(err: unknown): { message: string; status: number
   }
   if (err instanceof RateLimitedError) {
     return { message: "Too many requests right now, wait a moment and try again", status: 429 };
+  }
+  if (err instanceof ModelOutputError) {
+    return { message: "Could not make sense of that, please try again", status: 502 };
   }
   return null;
 }

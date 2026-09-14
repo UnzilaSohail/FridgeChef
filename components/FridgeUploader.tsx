@@ -3,15 +3,14 @@
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, Images, ScanLine } from "lucide-react";
-import { fileToUploadableDataUrl } from "@/lib/image";
 
 export function FridgeUploader({
-  onImage,
+  onFile,
   disabled,
   compact,
   loadingLabel,
 }: {
-  onImage: (dataUrl: string) => void;
+  onFile: (file: File) => void;
   disabled?: boolean;
   compact?: boolean;
   loadingLabel?: string;
@@ -20,14 +19,9 @@ export function FridgeUploader({
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
-  async function readFile(file: File | undefined | null) {
-    if (!file) return;
-    const dataUrl = await fileToUploadableDataUrl(file);
-    onImage(dataUrl);
-  }
-
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    readFile(e.target.files?.[0]).catch((err) => console.error("Could not read photo:", err));
+    const file = e.target.files?.[0];
+    if (file) onFile(file);
     e.target.value = "";
   }
 
@@ -35,7 +29,8 @@ export function FridgeUploader({
     e.preventDefault();
     setDragging(false);
     if (disabled) return;
-    readFile(e.dataTransfer.files?.[0]).catch((err) => console.error("Could not read photo:", err));
+    const file = e.dataTransfer.files?.[0];
+    if (file) onFile(file);
   }
 
   // Two separate inputs: only the camera one forces a direct capture

@@ -1,5 +1,9 @@
 const MAX_DIMENSION = 1600;
 const JPEG_QUALITY = 0.82;
+// Generous ceiling meant to catch "wrong file picked" (video, RAW, etc.),
+// not legitimate photos — even an uncompressed 48MP camera shot is well
+// under this.
+const MAX_SOURCE_BYTES = 75 * 1024 * 1024;
 
 function readAsDataUrl(file: File | Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -46,11 +50,33 @@ function drawToJpegDataUrl(source: CanvasImageSource, width: number, height: num
  * alongside the decoded image).
  */
 export async function fileToUploadableDataUrl(file: File): Promise<string> {
+  // Only reject on a confidently-wrong type. Some browsers/OSes (notably
+  // HEIC on Windows/Chrome) leave `file.type` empty for formats they can't
+  // identify even when the file itself decodes fine downstream — treat
+  // "unknown" as "let the decoder decide" rather than a hard rejection, and
+  // only hard-reject a type that's explicitly something else (e.g. video/*,
+  // application/pdf).
+  if (file.type && !file.type.startsWith("image/")) {
+    throw new Error("That file isn't a photo — pick an image instead");
+  }
+  if (file.size > MAX_SOURCE_BYTES) {
+    throw new Error("That photo is too large — try a smaller image");
+  }
+
   if (typeof createImageBitmap === "function") {
     try {
       const bitmap = await createImageBitmap(file, {
         resizeWidth: MAX_DIMENSION,
         resizeQuality: "medium",
+        // Explicit rather than relying on the browser default: older Chrome
+        // (<89) defaults imageOrientation to "none", which decodes straight
+        // from raw pixel data and ignores the EXIF rotation flag phone
+        // cameras write. Without this, a portrait fridge photo silently
+        // comes out sideways after resizing — the resize dimensions get
+        // computed from the *unrotated* bitmap, so it's not recoverable
+        // downstream. "from-image" (the current spec default) makes this
+        // consistent across browsers instead of trusting each one's default.
+        imageOrientation: "from-image",
       });
       try {
         return drawToJpegDataUrl(bitmap, bitmap.width, bitmap.height);
@@ -66,9 +92,21 @@ export async function fileToUploadableDataUrl(file: File): Promise<string> {
   // Fallback for browsers without resizing createImageBitmap support. Still
   // decodes at full resolution first, so it carries the same memory risk
   // this function exists to avoid — but it's better than failing outright.
-  const dataUrl = await readAsDataUrl(file);
-  const img = await loadImage(dataUrl);
+  // <img>/canvas decoding already applies EXIF orientation in every
+  // evergreen browser, so no equivalent option is needed here.
+  let dataUrl: string;
+  let img: HTMLImageElement;
+  try {
+    dataUrl = await readAsDataUrl(file);
+    img = await loadImage(dataUrl);
+  } catch {
+    throw new Error("Could not read that photo — try a different one or take a new photo");
+  }
   const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height));
   if (scale === 1) return dataUrl;
-  return drawToJpegDataUrl(img, Math.round(img.width * scale), Math.round(img.height * scale));
+  try {
+    return drawToJpegDataUrl(img, Math.round(img.width * scale), Math.round(img.height * scale));
+  } catch {
+    throw new Error("Could not process that photo — try a different one or take a new photo");
+  }
 }
