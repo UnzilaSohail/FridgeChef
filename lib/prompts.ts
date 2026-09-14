@@ -2,7 +2,7 @@ import type { DietaryPreference } from "@/types";
 
 export const ANALYZE_PROMPT = `You are looking at a photo of the inside of a refrigerator, freezer, or pantry.
 List only items you can clearly identify. Do not guess at items you cannot see, and do not list brand names.
-List at most 20 items total — if more are visible, include only the 20 most clearly identifiable ones.
+List at most 12 items total — if more are visible, include only the 12 most clearly identifiable ones.
 
 For each item, provide:
 - name: lowercase, singular, generic (e.g. "bell pepper" not "red pepper, organic")

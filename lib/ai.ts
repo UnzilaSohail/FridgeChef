@@ -16,9 +16,11 @@ export class InvalidApiKeyError extends Error {
 }
 
 export class RateLimitedError extends Error {
-  constructor() {
+  readonly retryAfterSeconds?: number;
+  constructor(retryAfterSeconds?: number) {
     super("Rate limited by Groq");
     this.name = "RateLimitedError";
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -76,7 +78,15 @@ async function callJsonModel(
       } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
     } catch (err) {
       if (err instanceof AuthenticationError) throw new InvalidApiKeyError();
-      if (err instanceof RateLimitError) throw new RateLimitedError();
+      if (err instanceof RateLimitError) {
+        // Groq sends a Retry-After header (seconds) on 429s — surface the
+        // actual wait instead of a vague "try again", since this model's
+        // free-tier tokens-per-minute budget is small enough that an
+        // immediate re-click reliably 429s again too.
+        const header = err.headers?.get("retry-after");
+        const seconds = header != null ? Number(header) : NaN;
+        throw new RateLimitedError(Number.isFinite(seconds) ? seconds : undefined);
+      }
       if (err instanceof APIError) {
         // Groq's own JSON-mode validator 400s when the model's output gets
         // truncated mid-object (e.g. max_tokens cut off a long ingredient
@@ -102,11 +112,17 @@ async function callJsonModel(
 }
 
 export async function analyzeImage(imageDataUrl: string): Promise<unknown> {
-  // A well-stocked fridge shelf can easily have 15-20+ visible items; at
-  // ~30-40 tokens per structured ingredient object, 500 was too tight and
-  // truncated mid-object on real photos (Groq's JSON-mode validator then
-  // 400s rather than returning the partial content). ANALYZE_PROMPT also
-  // caps the list at 20 items as a belt-and-suspenders bound.
+  // Groq bills every image at a flat 2048 input tokens regardless of
+  // dimensions, and the free tier's tokens-per-minute budget for this model
+  // is small (on the order of 6000) — so max_tokens here isn't just tuned
+  // against truncation anymore, it's tuned against how much of that
+  // per-minute budget one call (and its worst-case one retry, which resends
+  // the image) can eat before legitimate back-to-back photo analyses start
+  // 429ing each other. 1500 fixed truncation but made two attempts
+  // (2*(2048 image + ~150 prompt + 1500)) alone nearly exhaust the budget.
+  // 700 + a lower 12-item cap (see ANALYZE_PROMPT) still comfortably covers
+  // a typical shelf without needing the retry path, while leaving headroom
+  // for a second real photo in the same minute.
   return callJsonModel(
     VISION_MODEL,
     [
@@ -118,7 +134,7 @@ export async function analyzeImage(imageDataUrl: string): Promise<unknown> {
         ],
       },
     ],
-    1500,
+    700,
   );
 }
 
@@ -142,7 +158,11 @@ export function describeAiError(err: unknown): { message: string; status: number
     return { message: "Groq rejected the configured GROQ_API_KEY — check it's correct and active", status: 500 };
   }
   if (err instanceof RateLimitedError) {
-    return { message: "Too many requests right now, wait a moment and try again", status: 429 };
+    const message =
+      err.retryAfterSeconds != null
+        ? `Too many requests right now, try again in about ${Math.max(1, Math.ceil(err.retryAfterSeconds))}s`
+        : "Too many requests right now, wait about a minute and try again";
+    return { message, status: 429 };
   }
   if (err instanceof ModelOutputError) {
     return { message: "Could not make sense of that, please try again", status: 502 };
