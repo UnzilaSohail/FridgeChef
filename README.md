@@ -30,8 +30,9 @@ spoiling stands out first.
 
 - **[Next.js 16](https://nextjs.org)** (App Router, Turbopack) + React 19 + TypeScript
 - **Tailwind CSS 4** for styling, **lucide-react** for icons, **framer-motion** for the step transitions and micro-interactions
-- **Groq** (OpenAI-compatible API) for both the vision (ingredient detection)
-  and text (recipe generation) model calls — see `lib/ai.ts`
+- **Gemini** (OpenAI-compatible API) for vision (ingredient detection) and
+  **Groq** (OpenAI-compatible API) for text (recipe generation) — see
+  `lib/ai.ts`
 - **Zod** for validating model output against the app's data schemas
 - No database — everything lives in client component state for the
   duration of a session
@@ -49,7 +50,7 @@ components/
   RecipeCard.tsx            # recipe result card
   WastePriorityBadge.tsx    # "Use today / Use soon / Fresh" badge
 lib/
-  ai.ts                     # Groq client + JSON-mode model calls
+  ai.ts                     # Gemini/Groq clients + JSON-mode model calls
   prompts.ts                # prompts sent to the vision/text models
   schemas.ts                # Zod schemas validating model responses
   waste-priority.ts         # freshness + shelf-life -> waste-priority score
@@ -61,7 +62,10 @@ types/index.ts               # shared TypeScript types
 ### Prerequisites
 
 - Node.js 20+
-- A [Groq API key](https://console.groq.com/keys) (free tier works)
+- A [Gemini API key](https://aistudio.google.com/apikey) (free tier works, no
+  credit card required) — used for photo analysis
+- A [Groq API key](https://console.groq.com/keys) (free tier works) — used
+  for recipe generation
 
 ### Setup
 
@@ -72,6 +76,7 @@ npm install
 Create a `.env.local` in the project root:
 
 ```bash
+GEMINI_API_KEY=your-gemini-api-key
 GROQ_API_KEY=your-groq-api-key
 ```
 
@@ -101,9 +106,14 @@ Open [http://localhost:3000](http://localhost:3000).
 - **Recipe ranking** takes the *max* waste-priority score across a recipe's
   used ingredients rather than the average — a recipe that rescues one
   near-spoiling item should outrank one that only uses shelf-stable items.
-- **Vision model** is currently Groq's Qwen (`lib/ai.ts`); the code is
-  structured so it can be swapped for a Claude vision call with no other
-  changes once that's needed.
+- **Vision model** is Gemini 2.5 Flash (`lib/ai.ts`) — moved off Groq because
+  Groq's free tier only budgets ~6,000 tokens/minute for its vision model,
+  and a flat 2,048-token charge per image made that easy to exhaust with
+  normal usage. Gemini's free tier budgets ~250,000 tokens/minute with no
+  credit card required. Recipe generation stays on Groq (no image cost, no
+  rate-limit pressure). Both are called through the OpenAI SDK against each
+  provider's OpenAI-compatible endpoint, so swapping either one again is a
+  base-URL + model-name change, not a rewrite.
 - **Motion** — an animated ambient gradient background, spring-based step
   transitions, staggered ingredient/recipe entrances, and a scanning
   animation with cycling status text while a photo is being analyzed
